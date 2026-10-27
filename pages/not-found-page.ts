@@ -10,6 +10,10 @@ export default class NotFoundPage extends BasePage {
     this.searchInput = page.getByRole('main').getByRole('searchbox', { name: 'Search' });
   }
 
+  mainLink(name: string | RegExp): Locator {
+    return this.page.getByRole('main').getByRole('link', { name, exact: typeof name === 'string' });
+  }
+
   async open(): Promise<Response | null> {
     return this.navigateTo(notFoundPage.path);
   }

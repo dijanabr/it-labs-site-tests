@@ -57,7 +57,12 @@ export function getSitePage(path: string): SitePage {
 export const notFoundPage = {
   path: '/this-page-should-not-exist-regression-check/',
   title: 'Page not found - IT Labs',
-  h1: 'Whoops, that page is gone',
+  h1: 'This page doesn’t exist',
+  helpfulLinks: [
+    { name: 'Contact us', path: '/contact/' },
+    { name: /^Articles/, path: '/insights/' },
+    { name: /^Case studies/, path: '/case-studies/' },
+  ],
 };
 
 // Old URLs that must keep redirecting to their replacement pages.

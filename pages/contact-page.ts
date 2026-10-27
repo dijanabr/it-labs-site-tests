@@ -1,6 +1,7 @@
-import type { Locator, Page, Response } from '@playwright/test';
+import type { Locator, Page, Request, Response } from '@playwright/test';
 import BasePage from './base-page';
 import { contactForm } from '../test-data/contact-form';
+import { getMultipartField } from '../utils/multipart';
 
 export interface FieldValidity {
   valid: boolean;
@@ -17,6 +18,12 @@ export interface ContactDetails {
   phone?: string;
 }
 
+export interface SubmitPayload {
+  ajaxUrl: string;
+  /** Form fields plus the parameters Bricks adds (action, nonce, formId, postId, loop*, referrer, urlParams). */
+  entries: [string, string][];
+}
+
 export default class ContactPage extends BasePage {
   readonly form: Locator;
   readonly nameInput: Locator;
@@ -28,6 +35,7 @@ export default class ContactPage extends BasePage {
   readonly consentCheckbox: Locator;
   readonly honeypotInput: Locator;
   readonly submitButton: Locator;
+  readonly submitResultMessage: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -41,6 +49,8 @@ export default class ContactPage extends BasePage {
     this.consentCheckbox = this.form.getByRole('checkbox', { name: contactForm.labels.consent });
     this.honeypotInput = this.form.getByLabel(contactForm.labels.honeypot, { exact: true });
     this.submitButton = this.form.getByRole('button', { name: contactForm.submitButton });
+    // Bricks appends <div class="message success|danger"> to the form with the server's reply.
+    this.submitResultMessage = this.form.locator('.message');
   }
 
   async open(): Promise<Response | null> {
@@ -84,9 +94,64 @@ export default class ContactPage extends BasePage {
     }
   }
 
-  /** Clicks "Send message". Only call this with an invalid form: NetworkGuard aborts any request that slips through. */
+  /** Fills a form that passes client-side validation, including the required privacy consent. */
+  async fillValidForm(details: ContactDetails): Promise<void> {
+    // Consent first: leaving the email field triggers inline validation that shifts the layout mid-click.
+    await this.checkViaLabel(this.consentCheckbox);
+    await this.fillContactDetails(details);
+  }
+
+  /**
+   * Clicks "Send message". With an invalid form nothing is sent; with a valid one the request is aborted by
+   * NetworkGuard unless the test mocks it (mockSubmitResponse) or lets it through (NetworkGuard.allowWrites).
+   */
   async attemptSubmit(): Promise<void> {
     await this.clickElement(this.submitButton);
+  }
+
+  /**
+   * Answers the form's AJAX submission with `body` instead of sending it to the site, and returns the
+   * intercepted requests. A page route takes precedence over NetworkGuard's context route, and fulfilling
+   * it means the request never leaves the browser.
+   */
+  async mockSubmitResponse(body: object): Promise<Request[]> {
+    const intercepted: Request[] = [];
+    await this.page.route(`**${contactForm.ajaxPath}`, async (route) => {
+      if (getMultipartField(route.request().postData(), 'action') !== contactForm.ajaxAction) return route.fallback();
+      intercepted.push(route.request());
+      await route.fulfill({ json: body });
+    });
+    return intercepted;
+  }
+
+  /** Builds the request body the way Bricks' bricksSubmitForm() does, from the form as currently filled in. */
+  async buildSubmitPayload(recaptchaToken: string): Promise<SubmitPayload> {
+    return this.form.evaluate(
+      (form, { action, token }) => {
+        const formElement = form as HTMLFormElement;
+        const { bricksData } = window as unknown as { bricksData: { ajaxUrl: string; postId: string; formNonce: string } };
+        const { scriptId, loopObjectId, loopSignature, loopType } = formElement.dataset;
+        const entries = [...new FormData(formElement)].filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+        entries.push(['action', action], ['loopId', loopObjectId ?? bricksData.postId]);
+        if (loopSignature) entries.push(['loopSignature', loopSignature], ['loopType', loopType ?? '']);
+        entries.push(
+          ['postId', bricksData.postId],
+          ['formId', scriptId!],
+          ['recaptchaToken', token],
+          ['nonce', bricksData.formNonce],
+          ['referrer', location.href],
+          ['urlParams', '{}'],
+        );
+        return { ajaxUrl: bricksData.ajaxUrl, entries };
+      },
+      { action: contactForm.ajaxAction, token: recaptchaToken },
+    );
+  }
+
+  async waitForSubmitRequest(): Promise<Request> {
+    return this.page.waitForRequest(
+      (request) => request.method() === 'POST' && new URL(request.url()).pathname === contactForm.ajaxPath && getMultipartField(request.postData(), 'action') === contactForm.ajaxAction,
+    );
   }
 
   async getValidity(field: Locator): Promise<FieldValidity> {

@@ -23,4 +23,34 @@ export const knownIssues = {
     description: 'page-sitemap.xml lists URLs that 301-redirect',
     urls: ['/corporate/', '/development-solutions/', '/security-services-3/'],
   },
+
+  // HTTP response headers of the HTML pages (tests/security/security-headers.spec.ts).
+  missingContentSecurityPolicy: {
+    open: true,
+    description: 'No Content-Security-Policy header',
+  },
+  missingFrameProtection: {
+    open: true,
+    description: 'Neither X-Frame-Options nor CSP frame-ancestors is set, so the site can be framed (clickjacking)',
+  },
+  missingContentTypeOptions: {
+    open: true,
+    description: 'No X-Content-Type-Options: nosniff header',
+  },
+  missingReferrerPolicy: {
+    open: true,
+    description: 'No Referrer-Policy header',
+  },
+  missingPermissionsPolicy: {
+    open: true,
+    description: 'No Permissions-Policy header',
+  },
+  hstsWithoutIncludeSubDomains: {
+    open: true,
+    description: 'Strict-Transport-Security is "max-age=63072000" without includeSubDomains',
+  },
+  serverVersionDisclosed: {
+    open: true,
+    description: 'Server header discloses the version: "nginx/1.24.0 (Ubuntu)"',
+  },
 };

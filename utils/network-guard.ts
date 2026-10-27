@@ -1,4 +1,4 @@
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { tracking } from '../test-data/tracking';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -13,6 +13,7 @@ const HEAVY_RESOURCE_TYPES = new Set(['image', 'media', 'font']);
 export default class NetworkGuard {
   readonly blockedWrites: string[] = [];
   readonly blockedBeacons: string[] = [];
+  readonly allowedWrites: string[] = [];
   private readonly blockedUrls = new Set<string>();
   private readonly siteHost: string;
 
@@ -52,6 +53,18 @@ export default class NetworkGuard {
         await route.abort('blockedbyclient');
       });
     }
+  }
+
+  /**
+   * Lets this page's requests to `url` through to the real site. Only for the opt-in @submit tests.
+   * page.route() handlers run before the context-level guard, and route.continue() sends the request
+   * straight to the network without consulting any other handler.
+   */
+  async allowWrites(page: Page, url: string): Promise<void> {
+    await page.route(url, async (route) => {
+      this.allowedWrites.push(`${route.request().method()} ${route.request().url()}`);
+      await route.continue();
+    });
   }
 
   isBlocked(url: string): boolean {

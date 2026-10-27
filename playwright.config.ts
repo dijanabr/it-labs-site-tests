@@ -12,7 +12,15 @@ function withRegressionUserAgent(device: DeviceDescriptor): Partial<PlaywrightTe
   return { ...device, userAgent: `${device.userAgent} ${site.regressionUserAgentToken}` };
 }
 
-const desktop = { ...withRegressionUserAgent(devices['Desktop Chrome']), viewport: { width: 1440, height: 900 } };
+function desktopBrowser(device: 'Desktop Chrome' | 'Desktop Firefox' | 'Desktop Safari') {
+  return { ...withRegressionUserAgent(devices[device]), viewport: { width: 1440, height: 900 } };
+}
+
+const desktop = desktopBrowser('Desktop Chrome');
+const desktopFirefox = desktopBrowser('Desktop Firefox');
+const desktopWebkit = desktopBrowser('Desktop Safari');
+const mobile = withRegressionUserAgent(devices['Pixel 7']);
+const tablet = withRegressionUserAgent(devices['iPad Mini']);
 
 export default defineConfig({
   testDir: './tests',
@@ -26,7 +34,7 @@ export default defineConfig({
   },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1,
+  retries: process.env.CI ? 2 : 0,
   // Production site: keep the load low.
   workers: 2,
   reporter: process.env.CI
@@ -39,7 +47,7 @@ export default defineConfig({
     navigationTimeout: 45_000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',
   },
   projects: [
     // Clicks through the real Cookiebot banner once per run and stores "accepted" / "declined" consent states.
@@ -51,11 +59,15 @@ export default defineConfig({
       dependencies: ['setup'],
       use: desktop,
     },
+    // Cross-browser: the user-facing functional tests only (SEO, links, tracking etc. do not depend on the engine).
+    { name: 'desktop-firefox', testMatch: /functional\/.*\.spec\.ts/, dependencies: ['setup'], use: desktopFirefox },
+    { name: 'desktop-webkit', testMatch: /functional\/.*\.spec\.ts/, dependencies: ['setup'], use: desktopWebkit },
+
     {
       name: 'mobile-chrome',
       testMatch: /responsive\/.*\.spec\.ts/,
       dependencies: ['setup'],
-      use: withRegressionUserAgent(devices['Pixel 7']),
+      use: mobile,
     },
     {
       name: 'mobile-safari',
@@ -65,18 +77,17 @@ export default defineConfig({
     },
     {
       name: 'tablet',
-      testMatch: /responsive\/.*\.spec\.ts/,
+      // Also scans the dropdowns inside the hamburger menu for accessibility problems.
+      testMatch: [/responsive\/.*\.spec\.ts/, /accessibility\/navigation-menus\.spec\.ts/],
       dependencies: ['setup'],
-      use: withRegressionUserAgent(devices['iPad Mini']),
+      use: tablet,
     },
 
     // Visual baselines are opt-in (npm run test:visual) because they need an approved baseline first.
     { name: 'visual-desktop', testMatch: /visual\/.*\.spec\.ts/, dependencies: ['setup'], use: desktop },
-    {
-      name: 'visual-mobile',
-      testMatch: /visual\/.*\.spec\.ts/,
-      dependencies: ['setup'],
-      use: withRegressionUserAgent(devices['Pixel 7']),
-    },
+    { name: 'visual-firefox', testMatch: /visual\/.*\.spec\.ts/, dependencies: ['setup'], use: desktopFirefox },
+    { name: 'visual-webkit', testMatch: /visual\/.*\.spec\.ts/, dependencies: ['setup'], use: desktopWebkit },
+    { name: 'visual-mobile', testMatch: /visual\/.*\.spec\.ts/, dependencies: ['setup'], use: mobile },
+    { name: 'visual-tablet', testMatch: /visual\/.*\.spec\.ts/, dependencies: ['setup'], use: tablet },
   ],
 });

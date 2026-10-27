@@ -8,6 +8,9 @@ test('unknown URL returns a real 404 with a helpful page', async ({ notFoundPage
   await expect(notFoundPage.page).toHaveTitle(notFound.title);
   await expect(notFoundPage.mainHeading).toHaveText(notFound.h1);
   await expect(notFoundPage.searchInput).toBeVisible();
+  for (const link of notFound.helpfulLinks) {
+    await expect(notFoundPage.mainLink(link.name)).toHaveAttribute('href', link.path);
+  }
   await expect(footer.root).toBeVisible();
 });
 

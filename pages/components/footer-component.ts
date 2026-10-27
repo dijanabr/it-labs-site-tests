@@ -7,6 +7,7 @@ export default class FooterComponent extends BasePage {
   readonly legalNavigation: Locator;
   readonly copyright: Locator;
   readonly certificationsHeading: Locator;
+  readonly certificationsSection: Locator;
   readonly moreAboutUsLink: Locator;
 
   constructor(page: Page) {
@@ -16,6 +17,7 @@ export default class FooterComponent extends BasePage {
     this.legalNavigation = this.root.getByRole('navigation', { name: 'Legal' });
     this.copyright = this.root.getByText(/©\s*\d{4}\s+IT Labs/);
     this.certificationsHeading = this.root.getByRole('heading', { name: /Certifications &\s*partnerships/ });
+    this.certificationsSection = this.certificationsHeading.locator('..');
     this.moreAboutUsLink = this.root.getByRole('link', { name: 'More about us' });
   }
 
